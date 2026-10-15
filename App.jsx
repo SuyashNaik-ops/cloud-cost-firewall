@@ -1,7 +1,78 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 
-const API = "https://cloud-cost-firewall.onrender.com";
+const API = (
+  import.meta.env.VITE_API_URL || "https://cloud-cost-firewall.onrender.com"
+).replace(/\/+$/, "");
+
+const REQUEST_TIMEOUT_MS = 45000;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function apiFetch(path, options = {}, retries = 0) {
+  const url = `${API}${path.startsWith("/") ? path : `/${path}`}`;
+  let lastError;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      return await fetch(url, {
+        ...options,
+        headers: {
+          Accept: "application/json",
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          ...options.headers,
+        },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) await sleep(1500);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  if (lastError?.name === "AbortError") {
+    throw new Error(
+      "The backend took too long to respond. Render may be waking up; please try again."
+    );
+  }
+
+  throw new Error(
+    "Cannot reach the backend. Check that the server is running and CORS allows this website."
+  );
+}
+
+async function readJsonResponse(response, label) {
+  const text = await response.text();
+  let data = null;
+
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    // Keep data null so the caller gets a clear response-format error.
+  }
+
+  if (!response.ok) {
+    const detail =
+      typeof data?.detail === "string"
+        ? data.detail
+        : Array.isArray(data?.detail)
+        ? data.detail.map((item) => item?.msg || String(item)).join(", ")
+        : typeof data?.message === "string"
+        ? data.message
+        : `${label} failed (${response.status})`;
+    throw new Error(detail);
+  }
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error(`${label} returned an invalid JSON response.`);
+  }
+
+  return data;
+}
 
 const inputStyle = {
   display: "block",
@@ -18,7 +89,7 @@ const inputStyle = {
 };
 
 function App() {
-  const [health, setHealth] = useState("Checking...");
+  const [health, setHealth] = useState("Connecting...");
   const [dashboard, setDashboard] = useState(null);
   const [newBudget, setNewBudget] = useState("0.0004");
   const [budgetMessage, setBudgetMessage] = useState("");
@@ -30,77 +101,146 @@ function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const loadDashboard = useCallback(async () => {
-    try {
-      const response = await fetch(`${API}/dashboard`);
-      if (!response.ok) throw new Error("Dashboard request failed");
-      const data = await response.json();
-      setDashboard(data);
-      setHealth("Connected");
-    } catch {
-      setHealth("Backend offline");
+  const refreshPromiseRef = useRef(null);
+  const budgetSubmittingRef = useRef(false);
+  const requestSubmittingRef = useRef(false);
+
+  const fetchDashboardData = useCallback(async () => {
+    const response = await apiFetch("/dashboard", { method: "GET" }, 1);
+    const data = await readJsonResponse(response, "Dashboard request");
+
+    const numericFields = [
+      "budget_usd",
+      "spent_usd",
+      "remaining_usd",
+      "blocked_budget_requests",
+    ];
+
+    for (const field of numericFields) {
+      if (
+        typeof data[field] !== "number" ||
+        !Number.isFinite(data[field])
+      ) {
+        throw new Error(`Dashboard response has an invalid "${field}" value.`);
+      }
     }
+
+    return data;
   }, []);
 
-  const loadActivity = useCallback(async () => {
-    try {
-      const response = await fetch(`${API}/activity`);
-      if (!response.ok) throw new Error("Activity request failed");
-      const data = await response.json();
-      setActivities(Array.isArray(data.activity) ? data.activity : []);
-    } catch (error) {
-      console.error("Could not load activity:", error);
+  const fetchActivityData = useCallback(async () => {
+    const response = await apiFetch("/activity", { method: "GET" }, 1);
+    const data = await readJsonResponse(response, "Activity request");
+
+    // backend/main.py returns { count: number, activity: array }.
+    if (!Array.isArray(data.activity)) {
+      throw new Error('Activity response must contain an "activity" array.');
     }
+
+    return data.activity;
   }, []);
+
+  const executeRefresh = useCallback(() => {
+    if (refreshPromiseRef.current) return refreshPromiseRef.current;
+
+    const promise = (async () => {
+      try {
+        const [nextDashboard, nextActivities] = await Promise.all([
+          fetchDashboardData(),
+          fetchActivityData(),
+        ]);
+        setDashboard(nextDashboard);
+        setActivities(nextActivities);
+        setHealth("Connected");
+      } catch (error) {
+        setHealth("Backend offline");
+        throw error;
+      }
+    })();
+
+    refreshPromiseRef.current = promise;
+    promise.finally(() => {
+      if (refreshPromiseRef.current === promise) {
+        refreshPromiseRef.current = null;
+      }
+    }).catch(() => {
+      // The original promise is handled by the caller.
+    });
+
+    return promise;
+  }, [fetchDashboardData, fetchActivityData]);
 
   const refreshData = useCallback(async () => {
-    await Promise.all([loadDashboard(), loadActivity()]);
-  }, [loadDashboard, loadActivity]);
+    try {
+      await executeRefresh();
+    } catch (error) {
+      console.warn("Dashboard refresh failed:", error.message);
+    }
+  }, [executeRefresh]);
 
   useEffect(() => {
     refreshData();
   }, [refreshData]);
 
+  useEffect(() => {
+    if (health !== "Backend offline") return undefined;
+    const timer = setInterval(refreshData, 10000);
+    return () => clearInterval(timer);
+  }, [health, refreshData]);
+
   async function updateBudget(event) {
     event?.preventDefault();
-    const amount = Number(newBudget);
+    if (budgetSubmittingRef.current) return;
 
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setBudgetMessage("Enter a valid budget greater than $0.");
+    const amount = Number(newBudget);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
+      setBudgetMessage("Enter a valid budget greater than $0 and no more than $1,000,000.");
       return;
     }
 
+    budgetSubmittingRef.current = true;
     setBudgetLoading(true);
     setBudgetMessage("Updating budget...");
 
     try {
-      const response = await fetch(`${API}/budget`, {
+      const response = await apiFetch("/budget", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ budget_usd: amount }),
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readJsonResponse(response, "Budget update");
 
-      if (!response.ok) {
-        const detail = Array.isArray(data.detail)
-          ? data.detail.map((item) => item.msg).join(", ")
-          : data.detail;
-        throw new Error(detail || "Could not update the budget.");
+      // Actual backend response includes message, budget_usd, spent_usd and remaining_usd.
+      if (
+        typeof data.budget_usd !== "number" ||
+        !Number.isFinite(data.budget_usd) ||
+        data.budget_usd <= 0
+      ) {
+        throw new Error('Budget response did not include a valid "budget_usd" value.');
       }
 
-      await loadDashboard();
       setBudgetMessage(
-        `Budget successfully updated to $${Number(data.budget_usd ?? amount).toFixed(6)}.`
+        `Budget updated to $${data.budget_usd.toFixed(6)}. Refreshing dashboard...`
       );
+
+      try {
+        await executeRefresh();
+        setBudgetMessage(`Budget successfully updated to $${data.budget_usd.toFixed(6)}.`);
+      } catch (refreshError) {
+        setBudgetMessage(
+          `Budget was updated to $${data.budget_usd.toFixed(6)}, but dashboard refresh failed: ${refreshError.message}`
+        );
+      }
     } catch (error) {
-      setBudgetMessage(error.message || "Could not connect to the backend.");
+      setBudgetMessage(error.message || "Could not update the budget.");
     } finally {
+      budgetSubmittingRef.current = false;
       setBudgetLoading(false);
     }
   }
 
   async function checkRequest(event) {
     event?.preventDefault();
+    if (requestSubmittingRef.current) return;
 
     if (!agentId.trim()) {
       setResult({ approved: false, error: "Enter an agent identifier first." });
@@ -111,13 +251,13 @@ function App() {
       return;
     }
 
+    requestSubmittingRef.current = true;
     setLoading(true);
     setResult(null);
 
     try {
-      const response = await fetch(`${API}/check-request`, {
+      const response = await apiFetch("/check-request", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agent_id: agentId.trim(),
           prompt: prompt.trim(),
@@ -126,26 +266,51 @@ function App() {
           output_tokens: 500,
         }),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const detail = Array.isArray(data.detail)
-          ? data.detail.map((item) => item.msg).join(", ")
-          : data.detail;
-        throw new Error(detail || "The backend could not evaluate this request.");
+      const data = await readJsonResponse(response, "Request evaluation");
+
+      // Both the loop-block and budget-check paths return a boolean "approved".
+      if (typeof data.approved !== "boolean") {
+        throw new Error('Evaluation response did not include an "approved" boolean.');
       }
+
       setResult(data);
-      await refreshData();
+
+      try {
+        await executeRefresh();
+      } catch (refreshError) {
+        console.warn("Activity refresh failed after evaluation:", refreshError.message);
+      }
     } catch (error) {
-      setResult({ approved: false, error: error.message || "Cannot connect to the backend. Is it running?" });
+      setResult({
+        approved: false,
+        error: error.message || "Could not evaluate the request.",
+      });
     } finally {
+      requestSubmittingRef.current = false;
       setLoading(false);
     }
   }
 
-  const approvedCount = activities.filter((item) => item.status === "APPROVED").length;
-  const blockedCount = activities.filter((item) => item.status !== "APPROVED").length;
-  const budgetBlocks = activities.filter((item) => item.blocked_by === "budget_firewall").length;
-  const loopBlocks = activities.filter((item) => item.blocked_by === "loop_detector").length;
+  const approvedCount = activities.filter((item) => item?.status === "APPROVED").length;
+  const blockedCount = activities.filter((item) => item?.status === "BLOCKED").length;
+  const budgetBlocks = activities.filter(
+    (item) => item?.blocked_by === "budget_firewall"
+  ).length;
+  const loopBlocks = activities.filter(
+    (item) => item?.blocked_by === "loop_detector"
+  ).length;
+
+  const totalBudgetValue = dashboard?.budget_usd;
+  const spentValue = dashboard?.spent_usd;
+  const remainingValue = dashboard?.remaining_usd;
+  const blockedRequestsValue = dashboard?.blocked_budget_requests;
+
+  const currentBudgetText =
+    typeof totalBudgetValue === "number"
+      ? `$${totalBudgetValue.toFixed(6)}`
+      : health === "Backend offline"
+      ? "Unavailable — retrying automatically"
+      : "Loading (backend may be waking up)...";
 
   return (
     <div className="app" id="overview">
@@ -217,6 +382,7 @@ function App() {
                 id="budget-input"
                 type="number"
                 min="0.000001"
+                max="1000000"
                 step="any"
                 value={newBudget}
                 onChange={(event) => setNewBudget(event.target.value)}
@@ -229,16 +395,34 @@ function App() {
             </div>
           </form>
           {budgetMessage && <p className="field-hint" role="status">{budgetMessage}</p>}
-          <p className="field-hint">
-            Current backend budget: {dashboard ? `$${Number(dashboard.budget_usd ?? 0).toFixed(6)}` : "Loading..."}
-          </p>
+          <p className="field-hint">Current backend budget: {currentBudgetText}</p>
         </section>
 
         <section className="stats" aria-label="Budget summary">
-          <Stat title="Total Budget" value={dashboard ? `$${Number(dashboard.budget_usd ?? 0).toFixed(6)}` : "—"} note="Configured spending limit" icon="◎" />
-          <Stat title="Estimated Spend" value={dashboard ? `$${Number(dashboard.spent_usd ?? 0).toFixed(6)}` : "—"} note="Approved requests only" icon="↗" />
-          <Stat title="Budget Remaining" value={dashboard ? `$${Number(dashboard.remaining_usd ?? 0).toFixed(6)}` : "—"} note="Available budget" icon="◈" />
-          <Stat title="Budget Blocks" value={dashboard ? (dashboard.blocked_requests ?? 0) : "—"} note="Requests blocked by budget" icon="⊘" />
+          <Stat
+            title="Total Budget"
+            value={Number.isFinite(totalBudgetValue) ? `$${totalBudgetValue.toFixed(6)}` : "—"}
+            note="Configured spending limit"
+            icon="◎"
+          />
+          <Stat
+            title="Estimated Spend"
+            value={Number.isFinite(spentValue) ? `$${spentValue.toFixed(6)}` : "—"}
+            note="Approved requests only"
+            icon="↗"
+          />
+          <Stat
+            title="Budget Remaining"
+            value={Number.isFinite(remainingValue) ? `$${remainingValue.toFixed(6)}` : "—"}
+            note="Available budget"
+            icon="◈"
+          />
+          <Stat
+            title="Budget Blocks"
+            value={Number.isFinite(blockedRequestsValue) ? blockedRequestsValue : "—"}
+            note="Requests blocked by budget"
+            icon="⊘"
+          />
         </section>
 
         <section className="content-grid">
@@ -306,13 +490,16 @@ function App() {
             </form>
 
             {result && (
-              <div className={`result ${result.approved ? "success" : "blocked"}`} role="status">
+              <div
+                className={`result ${result.error ? "blocked" : result.approved ? "success" : "blocked"}`}
+                role="status"
+              >
                 <strong>
                   {result.error
-                    ? "REQUEST COULD NOT BE COMPLETED"
+                    ? "REQUEST FAILED (SYSTEM / NETWORK ERROR)"
                     : result.approved
-                      ? "✓ REQUEST APPROVED"
-                      : "⊘ REQUEST BLOCKED"}
+                    ? "✓ REQUEST APPROVED"
+                    : "⊘ REQUEST BLOCKED"}
                 </strong>
                 <pre>{JSON.stringify(result, null, 2)}</pre>
               </div>
@@ -360,27 +547,46 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activities.map((item, index) => (
-                    <tr key={item.id ?? `${item.timestamp}-${item.agent_id}-${index}`}>
-                      <td>{item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "—"}</td>
-                      <td>{item.agent_id || "—"}</td>
-                      <td>{item.model || "—"}</td>
-                      <td className="activity-prompt">{item.prompt || "—"}</td>
-                      <td>${Number(item.estimated_cost_usd ?? 0).toFixed(6)}</td>
-                      <td>
-                        <span className={`activity-status ${item.status === "APPROVED" ? "approved" : "blocked"}`}>
-                          {item.status || "UNKNOWN"}
-                        </span>
-                      </td>
-                      <td>
-                        {item.blocked_by === "budget_firewall"
-                          ? "Budget limit"
-                          : item.blocked_by === "loop_detector"
-                            ? "Repeated prompt"
-                            : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                  {activities.map((item, index) => {
+                    const cost = Number(item?.estimated_cost_usd);
+                    const formattedCost =
+                      item?.estimated_cost_usd !== null &&
+                      item?.estimated_cost_usd !== undefined &&
+                      Number.isFinite(cost)
+                        ? `$${cost.toFixed(6)}`
+                        : "—";
+
+                    let timeString = "—";
+                    if (item?.timestamp) {
+                      const date = new Date(item.timestamp);
+                      if (Number.isFinite(date.getTime())) {
+                        timeString = date.toLocaleTimeString();
+                      }
+                    }
+
+                    const reasonText =
+                      item?.blocked_by === "budget_firewall"
+                        ? "Budget limit"
+                        : item?.blocked_by === "loop_detector"
+                        ? "Repeated prompt"
+                        : item?.blocked_by || "—";
+
+                    return (
+                      <tr key={item?.id ?? `${item?.timestamp || ""}-${item?.agent_id || ""}-${index}`}>
+                        <td>{timeString}</td>
+                        <td>{item?.agent_id || "—"}</td>
+                        <td>{item?.model || "—"}</td>
+                        <td className="activity-prompt">{item?.prompt || "—"}</td>
+                        <td>{formattedCost}</td>
+                        <td>
+                          <span className={`activity-status ${item?.status === "APPROVED" ? "approved" : item?.status === "BLOCKED" ? "blocked" : ""}`}>
+                            {item?.status || "UNKNOWN"}
+                          </span>
+                        </td>
+                        <td>{reasonText}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -441,4 +647,3 @@ function Protection({ icon, title, description, status }) {
 }
 
 export default App;
-
