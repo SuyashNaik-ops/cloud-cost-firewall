@@ -5,6 +5,7 @@ from threading import Lock
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 app = FastAPI(
@@ -37,8 +38,7 @@ WINDOW_SECONDS = 30
 
 
 class BudgetUpdate(BaseModel):
-    budget: float
-
+    budget: float = Field(gt=0)
 
 class RequestCheck(BaseModel):
     agent: str = "default-agent"
