@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 
-const API = "http://127.0.0.1:8000";
+const API = "https://cloud-cost-firewall.onrender.com";
 
 const inputStyle = {
   display: "block",
@@ -441,3 +441,4 @@ function Protection({ icon, title, description, status }) {
 }
 
 export default App;
+
