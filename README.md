@@ -1,4 +1,4 @@
-# 🛡️ Cloud Cost Firewall
+ 🛡️ Cloud Cost Firewall
 
 ### Runtime AI Security • Intelligent Cost Governance • AI Infrastructure Protection
 
