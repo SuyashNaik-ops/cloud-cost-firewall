@@ -1,6 +1,6 @@
  🛡️ Cloud Cost Firewall
 
-### Runtime AI Security • Intelligent Cost Governance • AI Infrastructure Protection
+ Runtime AI Security • Intelligent Cost Governance • AI Infrastructure Protection
 
 <p align="center">
   <strong>Control AI Spending. Prevent Runaway Requests. Protect AI Infrastructure.</strong>
