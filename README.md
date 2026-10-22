@@ -22,7 +22,7 @@
 
  📌 Table of Contents
 
-* [Overview](#-overview)
+ [Overview](#-overview)
 * [The Problem](#-the-problem)
 * [Our Solution](#-our-solution)
 * [Project Objectives](#-project-objectives)
