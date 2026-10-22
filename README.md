@@ -23,8 +23,8 @@
  📌 Table of Contents
 
  [Overview](#-overview)
-* [The Problem](#-the-problem)
-* [Our Solution](#-our-solution)
+ [The Problem](#-the-problem)
+ [Our Solution](#-our-solution)
 * [Project Objectives](#-project-objectives)
 * [Key Features](#-key-features)
 * [How It Works](#-how-it-works)
