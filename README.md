@@ -51,7 +51,7 @@
 
  🚀 Overview
 
-Cloud Cost Firewall** is a prototype platform for runtime AI cost governance and infrastructure protection.
+Cloud Cost Firewall is a prototype platform for runtime AI cost governance and infrastructure protection.
 
 As organizations integrate Large Language Models (LLMs), AI agents, and generative AI applications into their products, they face a growing challenge: controlling the operational cost and behavior of AI-powered systems.
 
