@@ -44,8 +44,8 @@
 * [Current Limitations](#-current-limitations)
 * [Future Roadmap](#-future-roadmap)
 * [Team](#-team)
-* [Contributing](#-contributing)
-* [License](#-license)
+ [Contributing](#-contributing)
+ [License](#-license)
 
 ---
 
