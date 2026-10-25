@@ -67,7 +67,7 @@ Instead of focusing exclusively on how much an AI application has spent, the pro
 
 The project includes a FastAPI backend, a React dashboard, and a simulation environment for demonstrating security and cost-governance scenarios.
 
-### Project Information
+ Project Information
 
 | Attribute         | Details                                             |
 | ----------------- | --------------------------------------------------- |
