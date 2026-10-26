@@ -86,7 +86,7 @@ The project includes a FastAPI backend, a React dashboard, and a simulation envi
 
 ---
 
-## ❗ The Problem
+ ❗ The Problem
 
 Generative AI has made it easier than ever to build intelligent applications. However, the operational behavior of these applications can introduce unexpected costs and reliability problems.
 
