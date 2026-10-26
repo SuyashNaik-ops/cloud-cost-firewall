@@ -82,7 +82,7 @@ The project includes a FastAPI backend, a React dashboard, and a simulation envi
 | Team              | VoiceLink                                           |
 | Primary Goal      | Demonstrate runtime AI cost controls and monitoring |
 
-**Repository:** [SuyashNaik-ops/cloud-cost-firewall](https://github.com/SuyashNaik-ops/cloud-cost-firewall)
+**Repository: [SuyashNaik-ops/cloud-cost-firewall](https://github.com/SuyashNaik-ops/cloud-cost-firewall)
 
 ---
 
