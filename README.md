@@ -158,7 +158,7 @@ Present cost estimates, security decisions, request activity, and monitoring inf
 
 The aim is to make runtime AI governance easier to understand, demonstrate, and extend.
 
-### The Core Idea
+# The Core Idea
 
 ```text
 AI REQUEST
