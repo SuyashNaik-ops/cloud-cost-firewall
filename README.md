@@ -63,7 +63,7 @@ Cloud Cost Firewall explores a solution by combining cost estimation, configurab
 
 Instead of focusing exclusively on how much an AI application has spent, the project focuses on a broader question:
 
-> Can we detect potentially wasteful AI activity and enforce cost-related policies before that activity becomes an expensive operational problem?**
+ Can we detect potentially wasteful AI activity and enforce cost-related policies before that activity becomes an expensive operational problem?**
 
 The project includes a FastAPI backend, a React dashboard, and a simulation environment for demonstrating security and cost-governance scenarios.
 
