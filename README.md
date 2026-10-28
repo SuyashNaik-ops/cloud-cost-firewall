@@ -120,8 +120,8 @@ Developers may have access to cloud billing dashboards, but billing information 
 
 A team may need to understand:
 
-* Which requests were approved or blocked.
-* Whether repeated activity was detected.
+ Which requests were approved or blocked.
+ Whether repeated activity was detected.
 * Whether a spending threshold was reached.
 * How estimated costs change during a simulation.
 * What actions occurred during a test run.
