@@ -49,7 +49,7 @@
 
 
 
- 🚀 Overview
+ 🚀 Overview:
 
 Cloud Cost Firewall is a prototype platform for runtime AI cost governance and infrastructure protection.
 
