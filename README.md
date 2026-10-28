@@ -90,7 +90,7 @@ Repository: [SuyashNaik-ops/cloud-cost-firewall](https://github.com/SuyashNaik-o
 
 Generative AI has made it easier than ever to build intelligent applications. However, the operational behavior of these applications can introduce unexpected costs and reliability problems.
 
- 1. Uncontrolled AI Spending
+ 1. Uncontrolled AI Spending:
 
 AI services may charge according to input tokens, output tokens, requests, model selection, or other usage metrics.
 
