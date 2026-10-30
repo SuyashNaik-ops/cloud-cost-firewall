@@ -98,7 +98,7 @@ Without appropriate monitoring and budget controls, an application can generate 
 
 Example: A developer sets a small budget for an AI application, but repeated requests gradually push usage beyond the planned amount.
 
-## 2. Repeated Requests
+# 2. Repeated Requests
 
 Applications can accidentally submit identical or nearly identical requests multiple times.
 
