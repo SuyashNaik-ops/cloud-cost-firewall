@@ -96,7 +96,7 @@ AI services may charge according to input tokens, output tokens, requests, model
 
 Without appropriate monitoring and budget controls, an application can generate more usage than its developers intended.
 
-Example:* A developer sets a small budget for an AI application, but repeated requests gradually push usage beyond the planned amount.
+Example: A developer sets a small budget for an AI application, but repeated requests gradually push usage beyond the planned amount.
 
 ### 2. Repeated Requests
 
