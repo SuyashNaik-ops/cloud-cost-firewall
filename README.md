@@ -86,7 +86,7 @@ Repository: [SuyashNaik-ops/cloud-cost-firewall](https://github.com/SuyashNaik-o
 
 
 
- The Problem:-
+ The Problem:
 
 Generative AI has made it easier than ever to build intelligent applications. However, the operational behavior of these applications can introduce unexpected costs and reliability problems.
 
