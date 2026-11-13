@@ -104,7 +104,7 @@ Applications can accidentally submit identical or nearly identical requests mult
 
 This may happen because of retry logic, frontend errors, duplicated events, or poorly controlled agent workflows.
 
-**Result:** Unnecessary processing and potentially avoidable costs.
+*Result:** Unnecessary processing and potentially avoidable costs.
 
 ### 3. AI Agent Loops
 
