@@ -106,7 +106,7 @@ This may happen because of retry logic, frontend errors, duplicated events, or p
 
 *Result:** Unnecessary processing and potentially avoidable costs.
 
-### 3. AI Agent Loops
+## 3. AI Agent Loops
 
 AI agents can repeatedly call tools, revisit the same task, or continue executing without making meaningful progress.
 
