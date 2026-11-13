@@ -136,7 +136,7 @@ Cloud Cost Firewall explores this approach through a demonstration environment.
 
 ---
 
-## 💡 Our Solution
+# 💡 Our Solution
 
 Cloud Cost Firewall brings together three primary concepts:
 
